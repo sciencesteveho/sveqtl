@@ -5,6 +5,7 @@
 """Merge SV callsets to produce a genotype reference panel."""
 
 
+import argparse
 from typing import Dict, List
 
 from sveqtl.catalogue_config import SOURCE_CONFIGS
@@ -15,17 +16,28 @@ from sveqtl.sv_reference_merger import SVReferenceMerger
 
 def main() -> None:
     """Produce an SV genotyping reference panel."""
+    argparser = argparse.ArgumentParser(
+        description="Merge SV callsets to produce a genotype reference panel."
+    )
+    argparser.add_argument(
+        "--output_path",
+        type=str,
+        default=".",
+        help="Path to output directory for merged SV reference panel.",
+    )
+    args = argparser.parse_args()
+
     short_read_svs: List[Dict] = []
     long_read_svs: List[Dict] = []
 
     # Download and preprocess SV reference callsets
-    downloader = RefDownloader(configs=SOURCE_CONFIGS)
+    downloader = RefDownloader(configs=SOURCE_CONFIGS, output_path=args.output_path)
     downloader.download_ref_callsets()
     downloader.filter_callsets()
 
     # Normalize each VCF
     for source_name, config in SOURCE_CONFIGS.items():
-        filtered_vcf_path = f"{config.output_name}.filtered.vcf"
+        filtered_vcf_path = f"{args.output_path}/{config.output_name}.filtered.vcf"
 
         catalogue = SVCatalogue(
             vcf_path=filtered_vcf_path,
@@ -44,7 +56,7 @@ def main() -> None:
         short_read_svs=short_read_svs, long_read_svs=long_read_svs
     )
     merger.merge_callsets()
-    merger.write_merged("sv_genotype_reference.vcf")
+    merger.write_merged(f"{args.output_path}/sv_genotype_reference.vcf")
     print("[RefMerger] Finished merging SV callsets.")
 
 
