@@ -341,18 +341,18 @@ class SVReferenceMerger:
 
                     # Set required INFO for paragraph genotyping
                     if svtype == "DEL":
-                        rec.alts = ("DEL",)
+                        rec.alts = ("<DEL>",)
 
                     elif svtype == "INS":
-                        rec.alts = ("INS",)
+                        rec.alts = ("<INS>",)
                         insertion_seq = var.get("seq", "")
                         rec.info["SEQ"] = insertion_seq
 
                     elif svtype == "DUP":
-                        rec.alts = ("DUP",)
+                        rec.alts = ("<DUP>",)
 
                     elif svtype == "INV":
-                        rec.alts = ("INV",)
+                        rec.alts = ("<INV>",)
 
                     else:
                         print(
