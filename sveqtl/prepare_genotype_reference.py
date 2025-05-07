@@ -64,7 +64,6 @@ def filter_vcf_ref_bounds(vcf_path: str, fai_path: str) -> Tuple[int, int]:
                         removed += 1
 
         shutil.move(tmp_path, vcf_path)
-        os.remove(tmp_path)
         return kept, removed
 
 
