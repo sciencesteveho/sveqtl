@@ -5,7 +5,7 @@
 """Merge SV callsets to produce a genotype reference panel."""
 
 
-from typing import Callable, Dict, List, Union
+from typing import Callable, Dict, List, Optional, Union
 
 from intervaltree import IntervalTree  # type: ignore
 import pysam
@@ -61,12 +61,13 @@ class SVReferenceMerger:
       output_vcf: Path to the final merged VCF file.
 
     Examples::
-        # Instantiate the SVReferenceMerger class and run the merge pipeline
-        >>> merger = SVReferenceMerger(
-        ...     short_read_svs=[...],
-        ...     long_read_svs=[...],
-        ... )
-        >>> merger.merge_callsets(outfile=outfile)
+      # Instantiate the SVReferenceMerger class and run the merge pipeline
+      >>> merger = SVReferenceMerger(
+          short_read_svs=short_read_svs,
+          long_read_svs=long_read_svs,
+          ref_fasta=args.reference,
+          )
+      >>> merger.merge_callsets()
     """
 
     def __init__(
@@ -349,52 +350,74 @@ class SVReferenceMerger:
         with pysam.VariantFile(outfile, mode="w", header=header) as out_vcf:
             for var in self.merged_variants:
                 try:
-                    svtype = var["svtype"]
-                    ref_base = self._get_ref_base(var)
-                    if not ref_base:
-                        continue
-
-                    rec = out_vcf.new_record()
-                    rec.chrom = var["chrom"]
-                    rec.pos = var["pos"]
-                    rec.stop = var["end"]
-                    size = var["end"] - var["pos"]
-                    rec.id = f"{var['source']}_{svtype}_{var['pos']}_{size}"
-                    rec.ref = ref_base
-
-                    # Set required INFO for paragraph genotyping
-                    if svtype == "DEL":
-                        rec.alts = ("<DEL>",)
-
-                    elif svtype == "INS":
-                        rec.alts = ("<INS>",)
-                        insertion_seq = var.get("seq", "")
-                        rec.info["SEQ"] = insertion_seq
-
-                    elif svtype == "DUP":
-                        rec.alts = ("<DUP>",)
-
-                    elif svtype == "INV":
-                        rec.alts = ("<INV>",)
-
-                    else:
-                        print(
-                            f"[Warning] SV type {svtype} not recognized, "
-                            f"writing as symbolic <{svtype}>"
-                        )
-                        rec.alts = (f"<{svtype}>",)
-
-                    rec.info["SVTYPE"] = svtype
-                    rec.info["SOURCE"] = var["source"]
-                    rec.info["PRIORITY"] = var["priority"]
-                    rec.info["SIZE"] = size
-                    out_vcf.write(rec)
-
+                    record = self._create_vcf_record(var, out_vcf)
+                    if record:
+                        out_vcf.write(record)
                 except Exception as e:
-                    print(f"[Error] Failed to write record for variant={var}: {e}")
+                    self._log_record_error(var, e)
                     continue
 
         print(f"[RefMerger] Wrote final merged calls to {outfile}")
+
+    def _create_vcf_record(
+        self, var: Dict[str, Union[str, int]], out_vcf: pysam.VariantFile
+    ) -> Optional[pysam.VariantRecord]:
+        """Create a VCF record from a variant dictionary."""
+        svtype = var["svtype"]
+        ref_base = self._get_ref_base(var)
+        if not ref_base:
+            return None
+
+        rec = out_vcf.new_record()
+        rec.chrom = var["chrom"]
+        rec.pos = var["pos"]
+        rec.stop = var["end"]
+        size = var["end"] - var["pos"]  # type: ignore
+        rec.id = f"{var['source']}_{svtype}_{var['pos']}_{size}"
+        rec.ref = ref_base
+
+        self._set_alt_and_info(
+            rec=rec,
+            var=var,
+            svtype=svtype,  # type: ignore
+            size=size,
+        )
+        return rec
+
+    def _set_alt_and_info(
+        self,
+        rec: pysam.VariantRecord,
+        var: Dict[str, Union[str, int]],
+        svtype: str,
+        size: int,
+    ) -> None:
+        """Set ALT and INFO fields based on SV type."""
+        if svtype == "DEL":
+            rec.alts = ("<DEL>",)
+        elif svtype == "INS":
+            rec.alts = ("<INS>",)
+            insertion_seq = var.get("seq", "")
+            rec.info["SEQ"] = insertion_seq
+        elif svtype == "DUP":
+            rec.alts = ("<DUP>",)
+        elif svtype == "INV":
+            rec.alts = ("<INV>",)
+        else:
+            print(
+                f"[Warning] SV type {svtype} not recognized, writing as symbolic <{svtype}>"
+            )
+            rec.alts = (f"<{svtype}>",)
+
+        rec.info["SVTYPE"] = svtype
+        rec.info["SOURCE"] = var["source"]
+        rec.info["PRIORITY"] = var["priority"]
+        rec.info["SIZE"] = size
+
+    def _log_record_error(
+        self, var: Dict[str, Union[str, int]], error: Exception
+    ) -> None:
+        """Log an error when writing a record fails."""
+        print(f"[Error] Failed to write record for variant={var}: {error}")
 
     def _check_del_dup_ins_overlap(self, variant: Dict, lr_var: Dict) -> bool:
         """Check overlap for DEL/DUP/INS SV types based on size."""
