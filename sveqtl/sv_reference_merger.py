@@ -137,10 +137,6 @@ class SVReferenceMerger:
             trees[chrom].addi(start, end, var)
         return trees
 
-    def _get_ref_base(self, chrom: str, pos: int) -> str:
-        """Get the reference base at a specific position."""
-        return self.ref.fetch(chrom, pos - 1, pos).upper()
-
     def _filter_short_read_svs(self, short_read_svs: List[Dict]) -> List[Dict]:
         """Remove short-read calls that overlap same-type long reads.
 
@@ -297,6 +293,24 @@ class SVReferenceMerger:
             )
         return False
 
+    def _get_ref_base(self, variant: Dict) -> Union[str, None]:
+        """Get a valid reference base for the variant."""
+        var_ref = variant.get("ref", None)
+        if var_ref and var_ref != "N":
+            ref_base = var_ref
+        else:
+            ref_base = self.ref.fetch(
+                variant["chrom"], variant["pos"] - 1, variant["pos"]
+            ).upper()
+
+        if ref_base not in ("A", "C", "G", "T"):
+            print(
+                f"[Warning] Reference base for {variant} not recognized. Likely out of bounds."
+            )
+            return None
+
+        return ref_base
+
     def _write_vcf_header(self) -> pysam.VariantHeader:
         """Write a minimal VCF header to the specified file."""
         contigs = {var["chrom"] for var in self.merged_variants}
@@ -336,6 +350,9 @@ class SVReferenceMerger:
             for var in self.merged_variants:
                 try:
                     svtype = var["svtype"]
+                    ref_base = self._get_ref_base(var)
+                    if not ref_base:
+                        continue
 
                     rec = out_vcf.new_record()
                     rec.chrom = var["chrom"]
@@ -343,12 +360,7 @@ class SVReferenceMerger:
                     rec.stop = var["end"]
                     size = var["end"] - var["pos"]
                     rec.id = f"{var['source']}_{svtype}_{var['pos']}_{size}"
-
-                    var_ref = var.get("ref", None)
-                    if var_ref and var_ref != "N":
-                        rec.ref = var_ref
-                    else:
-                        rec.ref = self._get_ref_base(var["chrom"], var["pos"])
+                    rec.ref = ref_base
 
                     # Set required INFO for paragraph genotyping
                     if svtype == "DEL":
@@ -367,7 +379,8 @@ class SVReferenceMerger:
 
                     else:
                         print(
-                            f"[Warning] SV type {svtype} not recognized, writing as symbolic <{svtype}>"
+                            f"[Warning] SV type {svtype} not recognized, "
+                            f"writing as symbolic <{svtype}>"
                         )
                         rec.alts = (f"<{svtype}>",)
 
