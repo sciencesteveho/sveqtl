@@ -73,6 +73,7 @@ class SVReferenceMerger:
         self,
         short_read_svs: List[Dict],
         long_read_svs: List[Dict],
+        ref_fasta: str,
     ) -> None:
         """Initialize the SVReferenceMerger class.
 
@@ -88,6 +89,7 @@ class SVReferenceMerger:
 
         self.short_read_svs = short_read_svs
         self.long_read_svs = long_read_svs
+        self.ref = pysam.FastaFile(ref_fasta)
         self.longread_trees = self._build_interval_trees(self.long_read_svs)
 
     def merge_callsets(self) -> None:
@@ -134,6 +136,10 @@ class SVReferenceMerger:
             start, end = var["pos"], var["end"]
             trees[chrom].addi(start, end, var)
         return trees
+
+    def _get_ref_base(self, chrom: str, pos: int) -> str:
+        """Get the reference base at a specific position."""
+        return self.ref.fetch(chrom, pos - 1, pos).upper()
 
     def _filter_short_read_svs(self, short_read_svs: List[Dict]) -> List[Dict]:
         """Remove short-read calls that overlap same-type long reads.
@@ -337,7 +343,12 @@ class SVReferenceMerger:
                     rec.stop = var["end"]
                     size = var["end"] - var["pos"]
                     rec.id = f"{var['source']}_{svtype}_{var['pos']}_{size}"
-                    rec.ref = "N"
+
+                    var_ref = var.get("ref", None)
+                    if var_ref and var_ref != "N":
+                        rec.ref = var_ref
+                    else:
+                        rec.ref = self._get_ref_base(var["chrom"], var["pos"])
 
                     # Set required INFO for paragraph genotyping
                     if svtype == "DEL":

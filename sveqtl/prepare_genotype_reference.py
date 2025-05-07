@@ -79,12 +79,13 @@ def main() -> None:
         help="Path to output directory for merged SV reference panel.",
     )
     argparser.add_argument(
-        "--reference_index",
+        "--reference",
         type=str,
         required=True,
-        help="Path to the reference genome index file (FASTA index).",
+        help="Path to the reference genome FASTA. Path should also include an index.",
     )
     args = argparser.parse_args()
+    reference_index = f"{args.reference}.fai"
 
     short_read_svs: List[Dict] = []
     long_read_svs: List[Dict] = []
@@ -112,7 +113,9 @@ def main() -> None:
 
     # Instantiate the SVReferenceMerger class and run the merge pipeline
     merger = SVReferenceMerger(
-        short_read_svs=short_read_svs, long_read_svs=long_read_svs
+        short_read_svs=short_read_svs,
+        long_read_svs=long_read_svs,
+        ref_fasta=args.reference,
     )
     merger.merge_callsets()
 
@@ -123,7 +126,7 @@ def main() -> None:
     # Filter step to ensure that all SVs are within the reference genome bounds
     kept, removed = filter_vcf_ref_bounds(
         vcf_path=merged_vcf_path,
-        fai_path=args.reference_index,
+        fai_path=reference_index,
     )
     print(
         "Filtered SV callset to reference genome bounds. "
