@@ -13,7 +13,7 @@ from pathlib import Path
 import subprocess
 from typing import Dict
 
-from sveqtl.catalogue_config import SourceConfig
+from sveqtl.genotyping.catalogue_config import SourceConfig
 
 
 class RefDownloader:

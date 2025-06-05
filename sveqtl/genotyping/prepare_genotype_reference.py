@@ -13,10 +13,10 @@ from typing import Dict, List, Tuple
 
 import pysam
 
-from sveqtl.catalogue_config import SOURCE_CONFIGS
-from sveqtl.ref_downloader import RefDownloader
-from sveqtl.sv_catalogue import SVCatalogue
-from sveqtl.sv_reference_merger import SVReferenceMerger
+from sveqtl.genotyping.catalogue_config import SOURCE_CONFIGS
+from sveqtl.genotyping.ref_downloader import RefDownloader
+from sveqtl.genotyping.sv_catalogue import SVCatalogue
+from sveqtl.genotyping.sv_reference_merger import SVReferenceMerger
 
 
 def _load_contig_lengths(fai_path: str) -> Dict[str, int]:
