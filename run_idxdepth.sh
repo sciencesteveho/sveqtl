@@ -12,10 +12,10 @@
 #   1 on failure
 # Examples::
 #    run_idxdepth \
-#        /ocean/projects/bio210019p/stevesho/sveqtl/genotyping/HG00733.final.cram \
-#        /ocean/projects/bio210019p/stevesho/resources/hg38.fa \
+#        /ocean/projects/bio210019p/stevesho/sveqtl/genotyping/1kgp/HG00733.final.cram \
+#        /ocean/projects/bio210019p/stevesho/resources/GRCh38_no_alt_analysis_set_GCA_000001405.15.fasta \
 #        16 \
-#        /ocean/projects/bio210019p/stevesho/sveqtl/genotyping/idxdepth
+#        /ocean/projects/bio210019p/stevesho/sveqtl/genotyping/1kgp
 # =============================================================================
 run_idxdepth() {
     local bam_file=$1
@@ -26,18 +26,9 @@ run_idxdepth() {
 
     mkdir -p "$output_dir"
 
-    if [[ "$bam_file" == *.cram ]]; then
-        /ocean/projects/bio210019p/stevesho/sveqtl/genotyping/paragraph/bin/idxdepth \
-            --bam "$bam_file" \
-            --reference "$reference" \
-            --threads "$threads" \
-            --output "$output_dir/${prefix}.json" \
-            --output-bins "$output_dir/${prefix}.tsv"
-    else
-        /ocean/projects/bio210019p/stevesho/sveqtl/genotyping/paragraph/bin/idxdepth \
-            --bam "$bam_file" \
-            --reference "$reference" \
-            --threads "$threads" \
-            --output "$output_dir/${prefix}.json"
-    fi
+    /ocean/projects/bio210019p/stevesho/sveqtl/genotyping/paragraph/bin/idxdepth \
+        --bam "$bam_file" \
+        --reference "$reference" \
+        --threads "$threads" \
+        --output "$output_dir/${prefix}.json"
 }
