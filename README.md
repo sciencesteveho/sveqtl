@@ -2,8 +2,19 @@
 
 ## Multi-omic structural variant X-quantitative trait loci analysis
 
-## Requirements
-In addition to the packages in `requirements.txt`, creating the genotype reference requires a bcftools installation in the environment PATH.
-
-## Overview
+### Overview
 Coming soon!
+
+## Installation
+This package is currently in active developlment. Install it in editable mode via:
+```sh
+git clone https://github.com/sciencesteveho/sveqtl
+cd sveqtl
+pip install -e .
+```
+
+In addition to the packages in `requirements.txt`, much of the code requires a bcftools installation in the environment PATH.
+
+
+## Examples
+Also coming soon!

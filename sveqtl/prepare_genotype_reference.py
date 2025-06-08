@@ -11,7 +11,7 @@ import shutil
 import tempfile
 from typing import Dict, List, Tuple
 
-import pysam
+import pysam  # type: ignore
 
 from sveqtl.genotyping.catalogue_config import SOURCE_CONFIGS
 from sveqtl.genotyping.ref_downloader import RefDownloader
@@ -123,7 +123,7 @@ def main() -> None:
     merger.write_merged(merged_vcf_path)
     print("[RefMerger] Finished merging SV callsets.")
 
-    # Filter step to ensure that all SVs are within the reference genome bounds
+    # Ensure that all SVs are within the reference genome bounds
     kept, removed = filter_vcf_ref_bounds(
         vcf_path=merged_vcf_path,
         fai_path=reference_index,

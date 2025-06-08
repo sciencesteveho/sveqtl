@@ -8,7 +8,7 @@
 from typing import Callable, Dict, List, Optional, Union
 
 from intervaltree import IntervalTree  # type: ignore
-import pysam
+import pysam  # type: ignore
 from tqdm import tqdm  # type: ignore
 
 
@@ -296,7 +296,7 @@ class SVReferenceMerger:
 
     def _get_ref_base(self, variant: Dict) -> Union[str, None]:
         """Get a valid reference base for the variant."""
-        var_ref = variant.get("ref", None)
+        var_ref = variant.get("ref")
         if var_ref and var_ref != "N":
             ref_base = var_ref
         else:
@@ -350,8 +350,7 @@ class SVReferenceMerger:
         with pysam.VariantFile(outfile, mode="w", header=header) as out_vcf:
             for var in self.merged_variants:
                 try:
-                    record = self._create_vcf_record(var, out_vcf)
-                    if record:
+                    if record := self._create_vcf_record(var, out_vcf):
                         out_vcf.write(record)
                 except Exception as e:
                     self._log_record_error(var, e)

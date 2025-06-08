@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 
 
-"""Unit tests for sv_reference_merger.SVReferenceMerger."""
+"""Unit tests for SVReferenceMerger."""
 
 
 import pytest
-from sveqtl.sv_reference_merger import SVReferenceMerger
+
+from sveqtl.genotyping.sv_reference_merger import SVReferenceMerger
 
 _Short = "short_read"
 _Long = "long_read"
@@ -14,7 +15,7 @@ _Long = "long_read"
 
 def _base_variant(**kwargs):
     """Return a baseline variant dict; override fields via kwargs."""
-    base = {
+    return {
         "chrom": "chr1",
         "pos": 1000,
         "end": 1200,
@@ -22,9 +23,7 @@ def _base_variant(**kwargs):
         "svtype": "DEL",
         "source": _Short,
         "priority": 1,
-    }
-    base.update(kwargs)
-    return base
+    } | kwargs
 
 
 def large_del(**kw):
