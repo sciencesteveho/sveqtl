@@ -14,21 +14,17 @@ def _glob_files(sample_dir: Path, pattern: str) -> List[Path]:
     return [file for file in sample_dir.glob(pattern) if file.is_file()]
 
 
-def merge_vcfs(vcfs: List[Path], out_vcf_gz: Path, threads: int) -> None:
-    """Merge multiple VCFs into a single cohort VCF."""
-    if out_vcf_gz.exists():
-        return
-
-    subprocess.check_call(
-        [
-            "bcftools",
-            "merge",
-            "--threads",
-            str(threads),
-            "-Oz",
-            "-o",
-            str(out_vcf_gz),
-            *map(str, vcfs),
-        ]
-    )
-    subprocess.check_call(["bcftools", "index", "-t", str(out_vcf_gz)])
+def _index_vcf(vcf: Path, threads: int = 1) -> None:
+    """Index a bgzipped VCF if it does not already have an index."""
+    tbi = Path(f"{str(vcf)}.tbi")
+    if not tbi.exists():
+        subprocess.check_call(
+            [
+                "bcftools",
+                "index",
+                "-f",
+                "--threads",
+                str(threads),
+                str(vcf),
+            ]
+        )

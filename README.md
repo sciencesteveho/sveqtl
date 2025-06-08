@@ -13,7 +13,7 @@ cd sveqtl
 pip install -e .
 ```
 
-In addition to the packages in `requirements.txt`, much of the code requires a bcftools installation in the environment PATH.
+In addition to the packages in `requirements.txt`, much of the code requires bcftools and htslib installations in the environment PATH.
 
 
 ## Examples

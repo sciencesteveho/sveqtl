@@ -15,7 +15,7 @@ import pysam  # type: ignore
 from snphwe import snphwe  # type: ignore
 
 from sveqtl.utils.common import _glob_files
-from sveqtl.utils.common import merge_vcfs
+from sveqtl.utils.common import _index_vcf
 
 
 @dataclass(frozen=True)
@@ -25,20 +25,11 @@ class GenotypeFilters:
     max_missing_frac: float = 0.50
     hwe_alpha: float = 1e-4
     min_maf: float = 0.05
-    regex_filter_terms: str = "BP_DEPTH|NO_READS|DEPTH|MULTIMATCHED"
-    regex_ft_terms: str = "UNMATCHED,NO_VALID_GT|GQ|CONFLICT|BP_NO_GT"
 
 
 @dataclass
 class GenotypeCounts:
-    """Counts of genotypes for a single variant.
-
-    Attributes:
-      n_ref: Number of homozygous reference
-      n_het: Number of heterozygous
-      n_alt: Number of homozygous alt
-      n_missing: Number of missing
-    """
+    """Counts of genotypes for a single variant."""
 
     n_ref: int
     n_het: int
@@ -71,68 +62,41 @@ def _test_hardy_weinberg_equilibrium(counts: GenotypeCounts) -> float:
     return snphwe(counts.n_het, counts.n_alt, counts.n_ref)
 
 
-def _clean_paragraph_vcf(
-    vcf_in: Path,
-    vcf_out: Path,
-    filter_regex: str,
-    ft_regex: str,
+def merge_vcfs(
+    vcfs: List[Path],
+    out_vcf_gz: Path,
     threads: int,
 ) -> None:
-    """Clean a VCF with unwanted FILTER states to remove genotypes that fail
-    Paragraph QC.
-    """
-    if vcf_out.exists():
+    """Merge multiple VCFs into a single cohort VCF."""
+    if out_vcf_gz.exists():
         return
 
-    vcf_out.parent.mkdir(parents=True, exist_ok=True)
+    merge_cmd = [
+        "bcftools",
+        "merge",
+        "--threads",
+        str(threads),
+        "-Ov",
+        *map(str, vcfs),
+    ]
+    compress_cmd = ["bgzip", "-c", "-@", str(threads)]
 
-    filter_terms = filter_regex.split("|")
-    ft_terms = ft_regex.split("|")
-
-    # Build separate FILTER conditions and combine
-    filter_conditions = [f'FILTER~"{term}"' for term in filter_terms]
-    ft_conditions = [f'FMT/FT~"{term}"' for term in ft_terms]
-    all_conditions = filter_conditions + ft_conditions
-    filter_expr = " || ".join(all_conditions)
-
-    subprocess.check_call(
-        [
-            "bcftools",
-            "view",
-            "--threads",
-            str(threads),
-            "-e",
-            filter_expr,
-            "-Oz",
-            "-o",
-            str(vcf_out),
-            str(vcf_in),
-        ]
+    # bcftools merge | bgzip
+    merge_proc = subprocess.Popen(merge_cmd, stdout=subprocess.PIPE)
+    compress_proc = subprocess.Popen(
+        compress_cmd, stdin=merge_proc.stdout, stdout=subprocess.PIPE
     )
-    subprocess.check_call(["bcftools", "index", "-t", str(vcf_out)])
+    merge_proc.stdout.close()  # type: ignore
 
+    with open(out_vcf_gz, "wb") as f:
+        f.write(compress_proc.communicate()[0])
 
-def pre_filter_vcfs(
-    vcfs: Iterable[Path],
-    out_dir: Path,
-    genotype_filters: GenotypeFilters,
-    threads: int,
-) -> List[Path]:
-    """Pre-filter multiple VCFs by removing variants with unwanted FILTER
-    states.
-    """
-    cleaned_paths: List[Path] = []
-    for vcf in vcfs:
-        out_file = out_dir / f"{vcf.parent.name}.clean.vcf.gz"
-        _clean_paragraph_vcf(
-            vcf_in=vcf,
-            vcf_out=out_file,
-            filter_regex=genotype_filters.regex_filter_terms,
-            ft_regex=genotype_filters.regex_ft_terms,
-            threads=threads,
-        )
-        cleaned_paths.append(out_file)
-    return cleaned_paths
+    if merge_ret := merge_proc.wait():
+        raise subprocess.CalledProcessError(merge_ret, merge_cmd)
+    if compress_ret := compress_proc.wait():
+        raise subprocess.CalledProcessError(compress_ret, compress_cmd)
+
+    subprocess.check_call(["bcftools", "index", "-t", str(out_vcf_gz)])
 
 
 def _count_variant_genotypes(rec: pysam.VariantRecord) -> GenotypeCounts:
@@ -167,20 +131,6 @@ def _count_variant_genotypes(rec: pysam.VariantRecord) -> GenotypeCounts:
             n_miss += 1
 
     return GenotypeCounts(n_ref, n_het, n_alt, n_miss)
-
-
-def _keep_genotypes(
-    counts: GenotypeCounts, genotype_filters: GenotypeFilters
-) -> Tuple[bool, bool]:
-    """Return (keep_with_maf, keep_without_maf) bools based on QC
-    thresholds.
-    """
-    base_fail = (
-        counts.missing_fraction > genotype_filters.max_missing_frac
-        or _test_hardy_weinberg_equilibrium(counts) < genotype_filters.hwe_alpha
-    )
-    maf_fail = counts.maf < genotype_filters.min_maf
-    return (not (base_fail or maf_fail), not base_fail)
 
 
 def _prune_to_gt(header: pysam.VariantHeader) -> pysam.VariantHeader:
@@ -263,12 +213,26 @@ def filter_population_vcf(
                 else:
                     stats["without"]["dropped"] += 1
 
+    _print_filtering_stats(
+        dropped_missing=dropped_missing,
+        dropped_hwe=dropped_hwe,
+        dropped_maf=dropped_maf,
+        stats=stats,
+    )
+
+
+def _print_filtering_stats(
+    dropped_missing: int,
+    dropped_hwe: int,
+    dropped_maf: int,
+    stats: Dict[str, Dict[str, int]],
+) -> None:
+    """Print filtering statistics."""
     print(
         f"{dropped_missing:,} removed due to missing fraction, "
         f"{dropped_hwe:,} dropped for violating HWE, "
         f"{dropped_maf:,} for MAF threshold."
     )
-
     for key in ("with", "without"):
         kept = stats[key]["kept"]
         dropped = stats[key]["dropped"]
@@ -327,27 +291,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.05,
         help="Minimum minor-allele frequency threshold",
     )
-    parser.add_argument(
-        "--filter_regex",
-        type=str,
-        default="BP_DEPTH|NO_READS|DEPTH|MULTIMATCHED",
-        help="Regex of FILTER column strings to remove before merging",
-    )
-    parser.add_argument(
-        "--ft_regex",
-        type=str,
-        default="UNMATCHED|NO_VALID_GT|GQ|CONFLICT|BP_NO_GT",
-        help="Regex of FT field strings to remove before merging",
-    )
     return parser
 
 
 def main() -> None:
     """Entry point for genotype QC pipeline and performs the following:
       1. Locate all per-sample VCFs under `--sample-dir`.
-      2. Pre-clean each VCF by removing variants with unwanted FILTER states.
-      3. Merge the cleaned VCFs into a single cohort VCF.
-      4. Filter the cohort VCF for genotyping fraction, MAF, and HWE.
+      2. Merge the cleaned VCFs into a single cohort VCF and filter out
+         variants that fail QC.
+      3. Filter the cohort VCF for genotyping fraction, MAF, and HWE.
       
     Examples::
       >>> python filter_genotypes.py \
@@ -360,29 +312,22 @@ def main() -> None:
         max_missing_frac=args.max_missing_frac,
         hwe_alpha=args.hwe_alpha,
         min_maf=args.min_maf,
-        regex_filter_terms=args.filter_regex,
-        regex_ft_terms=args.ft_regex,
     )
 
     vcfs = _glob_files(
         sample_dir=args.sample_dir,
-        pattern="*/genotypes.vcf.gz",
+        pattern="*/genotypes_filtered.vcf.gz",
     )
     if not vcfs:
         raise SystemExit("No per-sample VCFs found. Check --sample_dir path")
+
+    for vcf in vcfs:
+        _index_vcf(vcf, threads=args.threads)
+
     print(f"Found {len(vcfs)} per-sample VCFs")
 
-    clean_dir = args.sample_dir / "clean"
-    cleaned_vcfs = pre_filter_vcfs(
-        vcfs=vcfs,
-        out_dir=clean_dir,
-        genotype_filters=genotype_filters,
-        threads=args.threads,
-    )
-    print(f"Cleaned {len(cleaned_vcfs)} VCFs.")
-
     merge_vcfs(
-        vcfs=cleaned_vcfs,
+        vcfs=vcfs,
         out_vcf_gz=args.merged_vcf,
         threads=args.threads,
     )
