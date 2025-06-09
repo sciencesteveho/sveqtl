@@ -1,9 +1,12 @@
-# SV-eQTL
+# SV-xQTL
 
-## Multi-omic structural variant X-quantitative trait loci analysis
+## Structural variant–centric analysis of xQTLs across molecular phenotypes
 
 ### Overview
-Coming soon!
+1. Create SV genotyping reference panel
+2. Run idxdepth on sample crams and parse json to sample manifest
+3. Run genotyping with paragraph
+4. Filter genotypes for QC, HWE, and call fraction
 
 ## Installation
 This package is currently in active developlment. Install it in editable mode via:
@@ -13,8 +16,13 @@ cd sveqtl
 pip install -e .
 ```
 
-In addition to the packages in `requirements.txt`, much of the code requires bcftools and htslib installations in the environment PATH.
+Additionally, bcftools and htslib installations in the environment PATH are required.
 
 
 ## Examples
-Also coming soon!
+Build the SV reference for genotyping:
+```shell
+python -u "${genotype_script}" \
+    --output_path "${outdir}" \
+    --reference "${reference}"
+```

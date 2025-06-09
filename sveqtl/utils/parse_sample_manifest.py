@@ -53,10 +53,6 @@ def parse_arguments() -> argparse.Namespace:
         help="Directory containing JSON files",
         default="/ocean/projects/bio210019p/stevesho/sveqtl/genotyping/idxdepth",
     )
-    parser.add_argument(
-        "--output_dir",
-        default="/ocean/projects/bio210019p/stevesho/sveqtl/genotyping/paragraph/genotype_resources",
-    )
     return parser.parse_args()
 
 
@@ -78,7 +74,9 @@ def write_sample_manifest(sample: Dict[str, str], output_file: str) -> None:
 def main() -> None:
     """Create individual sample manifests from JSON files."""
     args = parse_arguments()
-    os.makedirs(args.output_dir, exist_ok=True)
+    output_dir = f"{args.json_dir}/manifests"
+
+    os.makedirs(output_dir, exist_ok=True)
     json_files = _find_json_files(args.json_dir)
 
     if not json_files:
@@ -92,7 +90,7 @@ def main() -> None:
         try:
             if sample_data := process_json(json_file):
                 manifest_filename = f"{sample_data['id']}.manifest.tsv"
-                output_path = f"{args.output_dir}/{manifest_filename}"
+                output_path = f"{output_dir}/{manifest_filename}"
 
                 write_sample_manifest(sample_data, output_path)
                 processed_count += 1
@@ -101,7 +99,7 @@ def main() -> None:
             raise ValueError(f"Error processing {json_file}: {e}") from e
 
     print(f"Successfully processed {processed_count} samples")
-    print(f"Manifest files written to: {args.output_dir}")
+    print(f"Manifest files written to: {output_dir}")
 
 
 if __name__ == "__main__":
