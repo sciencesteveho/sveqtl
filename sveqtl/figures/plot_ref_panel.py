@@ -9,12 +9,16 @@ from collections import Counter
 from collections import defaultdict
 from typing import Dict, List, Set, Tuple
 
+from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FixedFormatter
 from matplotlib.ticker import FixedLocator
 from matplotlib.ticker import NullLocator
+from matplotlib.ticker import ScalarFormatter
 import numpy as np
 import pysam
+
+from sveqtl.figures import _set_matplotlib_publication_parameters
 
 SHORT_READ_SOURCES = ["1kg30x", "ccdg"]
 LONG_READ_SOURCES = ["ont100", "ont1k", "hgsvc3"]
@@ -23,28 +27,6 @@ LONG_READ_SOURCES = ["ont100", "ont1k", "hgsvc3"]
 def _normalize_source(source_str: str) -> str:
     """Adjust HGSVC3 string for consistency."""
     return "hgsvc3" if source_str.startswith("hgsvc3") else source_str
-
-
-def _set_matplotlib_publication_parameters() -> None:
-    """Set matplotlib parameters for publication-quality figures."""
-    plt.rcParams.update(
-        {
-            "font.size": 5,
-            "axes.titlesize": 5,
-            "axes.labelsize": 5,
-            "xtick.labelsize": 5,
-            "ytick.labelsize": 5,
-            "legend.fontsize": 5,
-            "figure.titlesize": 5,
-            "figure.dpi": 450,
-            "font.sans-serif": ["Arial", "Nimbus Sans"],
-            "axes.linewidth": 0.25,
-            "xtick.major.width": 0.25,
-            "ytick.major.width": 0.25,
-            "xtick.minor.width": 0.25,
-            "ytick.minor.width": 0.25,
-        }
-    )
 
 
 def _parse_vcf_size_data(vcf_path: str) -> Dict[str, List[int]]:
@@ -94,7 +76,7 @@ def _parse_vcf_source_data(vcf_path: str) -> Dict[str, List[str]]:
     return svtype_to_sources
 
 
-def create_sv_barplot(variants: Dict[str, List[int]]) -> plt.Figure:
+def create_sv_barplot(variants: Dict[str, List[int]]) -> Figure:
     """Create a barplot of variant counts per SV type."""
     counts_by_type = {t: len(sizes) for t, sizes in variants.items()}
 
@@ -158,7 +140,7 @@ def create_sv_size_plots(
     variants: Dict[str, List[int]],
     min_val: int = 50,
     max_val: int = 1_000_000,
-) -> plt.Figure:
+) -> Figure:
     """Create a stacked set of SV size plots (hist + KDE) per SV type, all
     sharing the same X-axis range.
     """
@@ -212,7 +194,7 @@ def create_sv_size_plots(
 
     ax.xaxis.set_major_locator(FixedLocator(x_ticks))
     ax.xaxis.set_major_formatter(FixedFormatter(x_labels))
-    ax.yaxis.set_major_formatter(plt.ScalarFormatter())
+    ax.yaxis.set_major_formatter(ScalarFormatter())
     for axis in [ax.xaxis, ax.yaxis]:
         axis.set_minor_locator(NullLocator())
 
@@ -227,7 +209,7 @@ def create_sv_size_plots(
 
 def create_sv_source_stacked_barplot(
     svtype_to_sources: Dict[str, List[str]],
-) -> plt.Figure:
+) -> Figure:
     """Creates a stacked horizontal barplot where each bar is an SV type
     (ALL, DEL, DUP, INS, INV) showing the proportion of each source
     contributing to that SV type.
@@ -324,7 +306,7 @@ def create_sv_source_stacked_barplot(
 
         ax.text(
             -0.02,
-            y_pos,
+            y_pos,  # type: ignore
             f"{long_read_count:,d}",
             ha="right",
             va="center",
@@ -333,7 +315,7 @@ def create_sv_source_stacked_barplot(
 
         ax.text(
             1.02,
-            y_pos,
+            y_pos,  # type: ignore
             f"{short_read_count:,d}",
             ha="left",
             va="center",
@@ -361,7 +343,7 @@ def create_sv_source_stacked_barplot(
     for src in legend_order:
         color = source_to_color[src]
         if color not in seen_colors:
-            patch = plt.Rectangle((0, 0), 1, 1, color=color, ec="none")
+            patch = plt.Rectangle((0, 0), 1, 1, color=color, ec="none")  # type: ignore
             legend_label = legend_name_mapping.get(src, src)
             legend_handles.append((patch, legend_label))
             seen_colors[color] = True
@@ -380,8 +362,9 @@ def create_sv_source_stacked_barplot(
     return fig
 
 
-def plot_sv_data_from_vcf(vcf_path: str) -> None:
-    """Plot SV genotype reference info"""
+def main(vcf_path: str = "sv_genotype_reference.vcf") -> None:
+    """Main function to execute the plotting."""
+    _set_matplotlib_publication_parameters()
     variants = _parse_vcf_size_data(vcf_path)
     svtype_to_sources = _parse_vcf_source_data(vcf_path)
 
@@ -392,13 +375,6 @@ def plot_sv_data_from_vcf(vcf_path: str) -> None:
     barplot.savefig("sv_barplot.svg", bbox_inches="tight")
     ridgelineplot.savefig("sv_ridgeline.svg", bbox_inches="tight")
     stacked_barplot.savefig("sv_stacked_barplot.svg", bbox_inches="tight")
-
-
-def main() -> None:
-    """Main function to execute the plotting."""
-    _set_matplotlib_publication_parameters()
-
-    plot_sv_data_from_vcf("sv_genotype_reference.vcf")
 
 
 if __name__ == "__main__":

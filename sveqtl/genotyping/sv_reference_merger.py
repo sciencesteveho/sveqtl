@@ -370,7 +370,10 @@ class SVReferenceMerger:
         rec = out_vcf.new_record()
         rec.chrom = var["chrom"]
         rec.pos = var["pos"]
-        rec.stop = var["end"]
+
+        rec.stop = (
+            rec.pos if var["svtype"] == "INS" else var["end"]
+        )  # end == pos for symbolic INS
         size = var["end"] - var["pos"]  # type: ignore
         rec.id = f"{var['source']}_{svtype}_{var['pos']}_{size}"
         rec.ref = ref_base
