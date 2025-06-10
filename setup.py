@@ -9,4 +9,9 @@ setup(
     package_data={
         "sveqtl": ["py.typed"],
     },
+    entry_points={
+        "console_scripts": [
+            "sveqtl=sveqtl.cli:main",
+        ],
+    },
 )

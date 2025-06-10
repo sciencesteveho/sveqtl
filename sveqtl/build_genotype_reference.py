@@ -5,7 +5,6 @@
 """Merge SV callsets to produce a genotype reference panel."""
 
 
-import argparse
 import os
 import shutil
 import tempfile
@@ -39,7 +38,7 @@ def _load_contig_lengths(fai_path: str) -> Dict[str, int]:
     return contig_lengths
 
 
-def filter_vcf_ref_bounds(vcf_path: str, fai_path: str) -> Tuple[int, int]:
+def _filter_vcf_ref_bounds(vcf_path: str, fai_path: str) -> Tuple[int, int]:
     """Remove variants where pos or end are outside the reference genome.
 
     Returns:
@@ -67,37 +66,37 @@ def filter_vcf_ref_bounds(vcf_path: str, fai_path: str) -> Tuple[int, int]:
         return kept, removed
 
 
-def main() -> None:
+def _check_for_index(reference: str) -> str:
+    """Check if the reference FASTA file has an index."""
+    reference_index = f"{reference}.fai"
+    if not os.path.exists(reference_index):
+        pysam.faidx(reference)
+        if not os.path.exists(reference_index):
+            raise FileNotFoundError(
+                f"Reference index {reference_index} could not be created. "
+                "Ensure that the reference FASTA file is valid."
+            )
+    return reference_index
+
+
+def build_genotype_reference(
+    reference: str,
+    output_path: str = ".",
+) -> None:
     """Produce an SV genotyping reference panel."""
-    argparser = argparse.ArgumentParser(
-        description="Merge SV callsets to produce a genotype reference panel."
-    )
-    argparser.add_argument(
-        "--output_path",
-        type=str,
-        default=".",
-        help="Path to output directory for merged SV reference panel.",
-    )
-    argparser.add_argument(
-        "--reference",
-        type=str,
-        required=True,
-        help="Path to the reference genome FASTA. Path should also include an index.",
-    )
-    args = argparser.parse_args()
-    reference_index = f"{args.reference}.fai"
+    reference_index = _check_for_index(reference)
 
     short_read_svs: List[Dict] = []
     long_read_svs: List[Dict] = []
 
     # Download and preprocess SV reference callsets
-    downloader = RefDownloader(configs=SOURCE_CONFIGS, output_path=args.output_path)
+    downloader = RefDownloader(configs=SOURCE_CONFIGS, output_path=output_path)
     downloader.download_ref_callsets()
     downloader.filter_callsets()
 
     # Normalize each VCF
     for source_name, config in SOURCE_CONFIGS.items():
-        filtered_vcf_path = f"{args.output_path}/{config.output_name}.filtered.vcf"
+        filtered_vcf_path = f"{output_path}/{config.output_name}.filtered.vcf"
 
         catalogue = SVCatalogue(
             vcf_path=filtered_vcf_path,
@@ -111,20 +110,20 @@ def main() -> None:
         else:
             long_read_svs.extend(catalogue.variants)
 
-    # Instantiate the SVReferenceMerger class and run the merge pipeline
+    # Instantiate class and run the merge pipeline
     merger = SVReferenceMerger(
         short_read_svs=short_read_svs,
         long_read_svs=long_read_svs,
-        ref_fasta=args.reference,
+        ref_fasta=reference,
     )
     merger.merge_callsets()
 
-    merged_vcf_path = f"{args.output_path}/sv_genotype_reference.vcf"
+    merged_vcf_path = f"{output_path}/sv_genotype_reference.vcf"
     merger.write_merged(merged_vcf_path)
     print("[RefMerger] Finished merging SV callsets.")
 
-    # Ensure that all SVs are within the reference genome bounds
-    kept, removed = filter_vcf_ref_bounds(
+    # Ensure that SVs are within the reference genome bounds
+    kept, removed = _filter_vcf_ref_bounds(
         vcf_path=merged_vcf_path,
         fai_path=reference_index,
     )
@@ -132,7 +131,3 @@ def main() -> None:
         "Filtered SV callset to reference genome bounds. "
         f"removed {removed} OOR variants; final count {kept}."
     )
-
-
-if __name__ == "__main__":
-    main()

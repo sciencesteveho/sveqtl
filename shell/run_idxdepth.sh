@@ -1,34 +1,61 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# =============================================================================
-# Run idxdepth for a given BAM/CRAM file
-# Args:
-#   1 - BAM/CRAM file
-#   2 - Reference genome (e.g., GRCh38)
-#   3 - Number of threads (default: 16)
-#   4 - Output directory (default: current directory)
-# Returns:
-#   0 on success
-#   1 on failure
-# Examples::
-#    run_idxdepth \
-#        /ocean/projects/bio210019p/stevesho/sveqtl/genotyping/1kgp/HG00733.final.cram \
-#        /ocean/projects/bio210019p/stevesho/resources/GRCh38_no_alt_analysis_set_GCA_000001405.15.fasta \
-#        16 \
-#        /ocean/projects/bio210019p/stevesho/sveqtl/genotyping/1kgp
-# =============================================================================
-run_idxdepth() {
-    local bam_file=$1
-    local reference=$2
-    local threads=${3:-16}
-    local output_dir=${4:-./}
-    local prefix=$(basename "$bam_file" | cut -d. -f1)
+usage() {
+  cat <<EOF >&2
+Usage:
+  $0 PARAGRAPH_DIR BAM_OR_CRAM_FILE REFERENCE_FASTA THREADS OUTPUT_DIR
 
-    mkdir -p "$output_dir"
+Arguments:
+  PARAGRAPH_DIR    Path to Paragraph install.
+  BAM_OR_CRAM_FILE Input BAM/CRAM file to analyze.
+  REFERENCE_FASTA  Reference FASTA.
+  THREADS          Number of threads to use.
+  OUTPUT_DIR       Directory where JSON output should be written.
 
-    /ocean/projects/bio210019p/stevesho/sveqtl/genotyping/paragraph/bin/idxdepth \
-        --bam "$bam_file" \
-        --reference "$reference" \
-        --threads "$threads" \
-        --output "$output_dir/${prefix}.json"
+Returns:
+  The sample prefix (basename without extension) on success.
+EOF
+  exit 1
 }
+
+#######################################
+# Run idxdepth for a single sample.
+# Globals:
+#   None
+# Arguments:
+#   paragraph_dir: Path to Paragraph installation directory
+#   bam_file     : Input BAM/CRAM file path
+#   reference    : Reference FASTA path
+#   threads      : Number of threads to use
+#   output_dir   : Directory where JSON output should be written
+# Returns:
+#   Prefix (basename without extension)
+#######################################
+run_idxdepth() {
+  if [[ $# -lt 5 ]]; then
+    usage
+  fi
+
+  local paragraph_dir="$1"
+  local bam_file="$2"
+  local reference="$3"
+  local threads="$4"
+  local output_dir="$5"
+  local prefix
+
+  prefix="$(basename "$bam_file" | cut -d. -f1)"
+
+  mkdir -p "$output_dir"
+
+  "${paragraph_dir}/bin/idxdepth" \
+    --bam "$bam_file" \
+    --reference "$reference" \
+    --threads "$threads" \
+    --output "${output_dir}/${prefix}.json"
+
+  echo "$prefix"
+}
+
+# Invoke main
+run_idxdepth "$@"
