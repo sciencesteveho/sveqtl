@@ -9,6 +9,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional
 
 from matplotlib import cm
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import pandas as pd  # type: ignore
 import pysam
@@ -75,35 +76,51 @@ def build_sv_dataframe(counts: Dict[str, Dict[str, int]]) -> pd.DataFrame:
 def plot_sv_counts(
     df: pd.DataFrame,
     sv_types: List[str],
-    figsize: tuple = (10, 6),
-    cmap_name: str = "viridis",
+    figsize: tuple = (2.45, 1.55),
+    cmap_name: str = "tab10",
 ) -> None:
     """Scatter-plot per-sample SV counts by type ordered by total_svs."""
     if sv_types is None:
         sv_types = [c for c in df.columns if c not in ("sample", "total_svs")]
 
-    x = df.index
-    cmap = cm.get_cmap(cmap_name, len(sv_types))
+    sample = df.index
+    cmap = plt.get_cmap(cmap_name)
+    type_to_color = {t: cmap(i % 10) for i, t in enumerate(sv_types)}
 
     plt.figure(figsize=figsize)
-    for i, sv in enumerate(sv_types):
+
+    for sv in sv_types:
+        edge_color = type_to_color[sv]
+
+        edge_rgb = mcolors.to_rgb(edge_color)
+        face_color = tuple(0.7 * c + 0.3 for c in edge_rgb)
+
         plt.scatter(
-            x,
+            sample,
             df[sv],
             label=sv,
-            color=cmap(i),
-            s=50,
+            color=face_color,
+            edgecolors=edge_color,
+            s=2.05,
             alpha=0.8,
+            linewidths=0.3,
         )
-    plt.xlabel("Sample (sorted by total SV count)")
-    plt.ylabel("Count of structural variants")
-    plt.title("Per-sample SV counts by type")
-    plt.legend(title="SV type")
+
+    plt.margins(x=0, y=0)
+    plt.legend(
+        frameon=False,
+        loc="right",
+        bbox_to_anchor=(1.25, 0.7),
+        markerscale=1.8,
+        handletextpad=-0.1,
+    )
+    plt.ylabel("Per-sample SV count")
+    plt.xlabel("Sample index")
     plt.tight_layout()
-    plt.savefig("sv_counts_per_sample.svg")
+    plt.savefig("sv_counts_per_sample_maf.svg")
 
 
-def main(vcf: str = "cohort.genotypes_filtered.vcf") -> None:
+def main(vcf: str = "cohort.genotypes_filtered.maf.vcf") -> None:
     """Main function to parse arguments, print summary, and plot results."""
 
     _set_matplotlib_publication_parameters()

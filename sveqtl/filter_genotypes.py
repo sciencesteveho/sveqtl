@@ -160,20 +160,6 @@ def _count_variant_genotypes(variant) -> GenotypeCounts:
     )
 
 
-def _prune_to_gt(header: pysam.VariantHeader) -> pysam.VariantHeader:
-    """Return a copy of vcf header with all FORMAT fields except GT removed."""
-    # new_header = pysam.VariantHeader()
-    # for rec in header.records:
-    #     if rec.type != "FORMAT" or rec["ID"] == "GT":
-    #         new_header.add_record(rec)
-
-    # for sample in header.samples:
-    #     new_header.add_sample(sample)
-
-    # return new_header
-    return header.copy()
-
-
 def _keep_only_gt(rec: pysam.VariantRecord) -> None:
     """Strip out all sample fields except GT in-place."""
     for _, record in rec.samples.items():
@@ -193,12 +179,12 @@ def _filter_population_vcf(
 
     vcf_reader = VCF(population_vcf)
     with pysam.VariantFile(population_vcf, threads=threads) as ivcf:
-        pruned_header = _prune_to_gt(ivcf.header)
+        header = ivcf.header.copy()
 
         with pysam.VariantFile(
-            out_with_maf, "w", header=pruned_header, threads=threads  # type: ignore
+            out_with_maf, "w", header=header, threads=threads  # type: ignore
         ) as o_maf, pysam.VariantFile(
-            out_without_maf, "w", header=pruned_header, threads=threads  # type: ignore
+            out_without_maf, "w", header=header, threads=threads  # type: ignore
         ) as o_no_maf:
 
             stats: Dict[str, Dict[str, int]] = {
