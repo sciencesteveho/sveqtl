@@ -33,10 +33,14 @@ sveqtl build_genotype_ref \
   --output_dir /path/to/output/
 ```
 
-**Required Arguments:**
+**Required arguments:**
 
 * `--reference`: Path to reference FASTA file (index must be in same directory)
 * `--output_dir`: Output location for the SV genotyping reference panel
+
+**Optional arguments:**
+
+* `--concordance`: Only keep variants supported by 2+ datasets
 
 ### 2. Run idxdepth genotyping prerequisite
 
@@ -49,14 +53,14 @@ sveqtl run_idx_depth \
   --idxdepth_out /path/to/output/
 ```
 
-**Required Arguments:**
+**Required arguments:**
 
 * `--paragraph_dir`: Path to Paragraph installation
 * `--bam_file`: Input CRAM/BAM file to process
 * `--reference`: Reference FASTA file
 * `--idxdepth_out`: Output directory for results
 
-**Optional Arguments:**
+**Optional arguments:**
 
 * `--threads`: Number of threads to use (default: 4)
 
@@ -72,7 +76,7 @@ sveqtl genotype \
   SAMPLE_NAME
 ```
 
-**Required Arguments:**
+**Required arguments:**
 
 * `--paragraph_dir`: Path to Paragraph installation directory
 * `--manifest_dir`: Directory containing per-sample manifest TSVs
@@ -80,7 +84,7 @@ sveqtl genotype \
 * `--pilot_dir`: Output directory for genotyping results
 * `SAMPLE_NAME`: Sample name (must match manifest basename)
 
-**Optional Arguments:**
+**Optional arguments:**
 
 * `--threads`: Number of threads to use (default: 32)
 
@@ -95,11 +99,11 @@ sveqtl combine_and_filter_genotypes \
   --min_maf 0.05
 ```
 
-**Required Arguments:**
+**Required arguments:**
 
 * `--sample_dir`: Directory containing per-sample VCF files
 
-**Optional Arguments:**
+**Optional arguments:**
 
 * `--threads`: Number of threads to use (default: 18)
 * `--max_missing_frac`: Maximum allowed missing genotype fraction (default: 0.50)

@@ -3,10 +3,7 @@
 
 """Plot # of genotyped SVs per sample in cohort."""
 
-import argparse
-from collections import Counter
-from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from matplotlib import cm
 import matplotlib.colors as mcolors
@@ -137,8 +134,10 @@ def main(vcf: str = "cohort.genotypes_filtered.maf.vcf") -> None:
         vcf_path=vcf,
         sv_types=sv_types,
     )
-    print(f"Total SV calls across samples: {total_sv_calls}")
-    print(f"Total unique SV loci with at least one call: {unique_sv_loci}")
+    print(
+        f"Total non-reference SV genotype calls (≥1 ALT allele) across samples: {total_sv_calls}"
+    )
+    print(f"Unique SV loci with ≥1 non-reference genotype: {unique_sv_loci}")
 
     plot_sv_counts(
         df=df,

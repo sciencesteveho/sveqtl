@@ -23,6 +23,11 @@ def _build_genotype_reference_parser(
         required=True,
         help="Output location for the SV genotyping reference panel.",
     )
+    build_ref_parser.add_argument(
+        "--concordance",
+        action="store_true",
+        help="Only keep variants supported by 2+ datasets.",
+    )
     build_ref_parser.set_defaults(func=func)
     return build_ref_parser
 

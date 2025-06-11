@@ -5,7 +5,7 @@
 """Merge SV callsets to produce a genotype reference panel."""
 
 
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
 from intervaltree import IntervalTree  # type: ignore
 import pysam  # type: ignore
@@ -59,14 +59,16 @@ class SVReferenceMerger:
       short_read_svs: List of short-read variants.
       long_read_svs: List of long-read variants.
       output_vcf: Path to the final merged VCF file.
+      concordance: If True, only keep variants supported by 2+ datasets.
 
     Examples::
       # Instantiate the SVReferenceMerger class and run the merge pipeline
       >>> merger = SVReferenceMerger(
-          short_read_svs=short_read_svs,
-          long_read_svs=long_read_svs,
-          ref_fasta=args.reference,
-          )
+      ...   short_read_svs=short_read_svs,
+      ...   long_read_svs=long_read_svs,
+      ...   ref_fasta=args.reference,
+      ...   concordance=concordance,
+      ... )
       >>> merger.merge_callsets()
     """
 
@@ -75,21 +77,15 @@ class SVReferenceMerger:
         short_read_svs: List[Dict],
         long_read_svs: List[Dict],
         ref_fasta: str,
+        concordance: bool = False,
     ) -> None:
-        """Initialize the SVReferenceMerger class.
-
-        Args:
-          short_read_svs: List of structural variants derived from short-read
-          sequencing.
-          long_read_svs: List of structural variants derived from long-read
-          sequencing.
-          output_vcf: Path to which the final merged set of variants should be
-          written.
-        """
+        """Initialize the SVReferenceMerger class."""
         self.merged_variants: List[Dict] = []
-
         self.short_read_svs = short_read_svs
         self.long_read_svs = long_read_svs
+        self.concordance = concordance
+        self.concordant_variants: Optional[Set[Tuple]] = set() if concordance else None
+
         self.ref = pysam.FastaFile(ref_fasta)
         self.longread_trees = self._build_interval_trees(self.long_read_svs)
 
@@ -102,20 +98,30 @@ class SVReferenceMerger:
             f"[RefMerger] Removed {len(self.short_read_svs) - len(short_filtered)} "
             f"short-read calls that overlap with long-read calls"
         )
-
         short_merged = self._merge_svs(short_filtered, self._should_merge_svs)
         print(
             f"[RefMerger] Merged {len(short_filtered) - len(short_merged)} "
             "short-read calls."
         )
-
         long_merged = self._merge_svs(self.long_read_svs, self._should_merge_svs)
         print(
             f"[RefMerger] Merged {len(self.long_read_svs) - len(long_merged)} "
             "long-read calls."
         )
-
         self.merged_variants = long_merged + short_merged
+
+        if self.concordance and self.concordant_variants is not None:
+            original_count = len(self.merged_variants)
+            self.merged_variants = [
+                var
+                for var in self.merged_variants
+                if self._variant_key(var) in self.concordant_variants
+            ]
+            print(
+                f"[RefMerger] Concordance filtering: kept {len(self.merged_variants)} "
+                f"of {original_count} variants (supported by 2+ datasets)"
+            )
+
         self.merged_variants.sort(key=lambda v: (v["chrom"], v["pos"], v["priority"]))
         print(f"[RefMerger] Final merged panel has {len(self.merged_variants)} calls.")
 
@@ -137,6 +143,11 @@ class SVReferenceMerger:
             start, end = var["pos"], var["end"]
             trees[chrom].addi(start, end, var)
         return trees
+
+    def _mark_concordant(self, variant: Dict) -> None:
+        """Mark a variant as concordant (supported by multiple datasets)."""
+        if self.concordance and self.concordant_variants is not None:
+            self.concordant_variants.add(self._variant_key(variant))
 
     def _filter_short_read_svs(self, short_read_svs: List[Dict]) -> List[Dict]:
         """Remove short-read calls that overlap same-type long reads.
@@ -182,11 +193,13 @@ class SVReferenceMerger:
                     )
                     and self._check_del_dup_ins_overlap(variant, lr_var)
                 ):
+                    self._mark_concordant(lr_var)
                     remove_it = True
                     break
 
                 elif variant_sv_type == "INV":
                     if self._check_inv_overlap(variant, lr_var):
+                        self._mark_concordant(lr_var)
                         remove_it = True
                         break
 
@@ -194,6 +207,7 @@ class SVReferenceMerger:
                 # difference and end < 100 bp difference
                 elif variant_sv_type == "INS" and lr_var["svtype"] == "INS":
                     if self._check_ins_vs_ins_overlap(variant, lr_var):
+                        self._mark_concordant(lr_var)
                         remove_it = True
                         break
 
@@ -201,6 +215,7 @@ class SVReferenceMerger:
                 # 100 bp difference
                 elif variant_sv_type == "INS" and lr_var["svtype"] == "DUP":
                     if self._check_ins_vs_dup_overlap(variant, lr_var):
+                        self._mark_concordant(lr_var)
                         remove_it = True
                         break
 
@@ -243,6 +258,10 @@ class SVReferenceMerger:
             for interval in overlapping_intervals:
                 existing_var = interval.data
                 if merge_func(var, existing_var):
+                    if self.concordance and var["source"] != existing_var["source"]:
+                        self._mark_concordant(var)
+                        self._mark_concordant(existing_var)
+
                     if var["priority"] < existing_var["priority"]:
                         merged_trees[chrom].remove(interval)
                         merged.remove(existing_var)
@@ -532,3 +551,14 @@ class SVReferenceMerger:
 
         required_keys = ["pos", "end", "size"]
         return not any(key not in var_a or key not in var_b for key in required_keys)
+
+    @staticmethod
+    def _variant_key(variant: Dict) -> Tuple:
+        """Create a unique key for a variant."""
+        return (
+            variant["chrom"],
+            variant["pos"],
+            variant["end"],
+            variant["svtype"],
+            variant["source"],
+        )

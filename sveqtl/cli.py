@@ -29,6 +29,7 @@ def _build_genotype_reference(args: argparse.Namespace) -> None:
     build_genotype_reference(
         reference=args.reference,
         output_path=args.output_dir,
+        concordance=args.concordance,
     )
     LOGGER.info(f"SV genotyping reference panel built and saved to {args.output_dir}.")
 

@@ -82,6 +82,7 @@ def _check_for_index(reference: str) -> str:
 def build_genotype_reference(
     reference: str,
     output_path: str = ".",
+    concordance: bool = False,
 ) -> None:
     """Produce an SV genotyping reference panel."""
     reference_index = _check_for_index(reference)
@@ -115,10 +116,15 @@ def build_genotype_reference(
         short_read_svs=short_read_svs,
         long_read_svs=long_read_svs,
         ref_fasta=reference,
+        concordance=concordance,
     )
     merger.merge_callsets()
 
-    merged_vcf_path = f"{output_path}/sv_genotype_reference.vcf"
+    if concordance:
+        merged_vcf_path = f"{output_path}/sv_genotype_reference_concordance.vcf"
+    else:
+        merged_vcf_path = f"{output_path}/sv_genotype_reference.vcf"
+
     merger.write_merged(merged_vcf_path)
     print("[RefMerger] Finished merging SV callsets.")
 
